@@ -304,7 +304,16 @@ var AvatarEditor = React.createClass({
     handleDragOver(e) {
         e.preventDefault();
     },
-
+    
+    handleSelectFile(e) {
+        e.stopPropagation();
+        e.preventDefault();
+        let reader = new FileReader();
+        let file = e.target.files[0];
+        reader.onload = (e) => this.loadImage(e.target.result);
+        reader.readAsDataURL(file);
+    },
+    
     handleDrop(e) {
         e.stopPropagation();
         e.preventDefault();
@@ -329,7 +338,11 @@ var AvatarEditor = React.createClass({
         attributes[deviceEvents.react.drag] = this.handleDragOver;
         attributes[deviceEvents.react.drop] = this.handleDrop;
 
-        return <canvas ref='canvas' {...attributes} />;
+        return <div style={{display: 'inline-block'}}>
+            <canvas ref='canvas' {...attributes} />
+            <br/>
+            <input type="file" onChange={this.handleSelectFile} />
+        </div>;
     }
 });
 

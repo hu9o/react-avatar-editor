@@ -49,6 +49,7 @@ var AvatarEditor = React.createClass({
         width: React.PropTypes.number,
         height: React.PropTypes.number,
         color: React.PropTypes.arrayOf(React.PropTypes.number),
+        rulerColor: React.PropTypes.arrayOf(React.PropTypes.number),
         onImageReady: React.PropTypes.func,
         style: React.PropTypes.object,
 
@@ -64,6 +65,7 @@ var AvatarEditor = React.createClass({
             width: 200,
             height: 200,
             color: [0, 0, 0, 0.5],
+            rulerColor: [255, 0, 0, 1],
             style: {},
             onLoadFailed() {},
             onUpload() {},
@@ -238,6 +240,15 @@ var AvatarEditor = React.createClass({
         context.fillRect(0, height - borderSize, width, borderSize); // bottom
         context.fillRect(0, borderSize, borderSize, height - (borderSize * 2)); // left
         context.fillRect(width - borderSize, borderSize, borderSize, height - (borderSize * 2)); // right
+        
+        var borderSizeMinusHalfPx = borderSize-0.5;
+        context.beginPath();
+        context.strokeStyle = "rgba("+this.props.rulerColor.slice(0, 4).join(",")+")";
+        context.moveTo(borderSizeMinusHalfPx, 0); context.lineTo(borderSizeMinusHalfPx, height);
+        context.moveTo(width-borderSizeMinusHalfPx, 0); context.lineTo(width-borderSizeMinusHalfPx, height);
+        context.moveTo(0, borderSizeMinusHalfPx); context.lineTo(width, borderSizeMinusHalfPx);
+        context.moveTo(0, height-borderSizeMinusHalfPx); context.lineTo(width, height-borderSizeMinusHalfPx);
+        context.stroke();
 
         context.restore();
     },

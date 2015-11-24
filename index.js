@@ -310,7 +310,7 @@ var AvatarEditor = React.createClass({
         var image = this.state.image;
         var dimensions = this.getDimensions();
         var heightDiff = Math.floor((image.height - dimensions.height / scale) / 2);
-        widthDiff = Math.max(0, widthDiff);
+        heightDiff = Math.max(0, heightDiff);
         return Math.max(-heightDiff, Math.min(y, heightDiff));
     },
 

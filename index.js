@@ -353,8 +353,6 @@ var AvatarEditor = React.createClass({
 
         return <div style={{display: 'inline-block'}}>
             <canvas ref='canvas' {...attributes} />
-            <br/>
-            <input type="file" onChange={this.handleSelectFile} />
         </div>;
     }
 });

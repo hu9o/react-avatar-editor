@@ -1,4 +1,5 @@
 var React = require('react');
+var ReactDOM = require('react-dom');
 
 var isTouchDevice =
     !!(typeof window !== 'undefined' &&
@@ -6,20 +7,26 @@ var isTouchDevice =
        ('ontouchstart' in window || navigator.msMaxTouchPoints > 0)
       );
 var draggableEvents = {
-    mobile: {
+    touch: {
         react: {
             down: 'onTouchStart',
+            mouseDown: 'onMouseDown',
             drag: 'onTouchMove',
             drop: 'onTouchEnd',
             move: 'onTouchMove',
-            up: 'onTouchUp'
+            mouseMove: 'onMouseMove',
+            up: 'onTouchEnd',
+            mouseUp: 'onMouseUp'
         },
         native: {
             down: 'touchstart',
+            mouseDown: 'mousedown',
             drag: 'touchmove',
             drop: 'touchend',
             move: 'touchmove',
-            up: 'touchup'
+            mouseMove: 'mousemove',
+            up: 'touchend',
+            mouseUp: 'mouseup'
         }
     },
     desktop: {
@@ -39,36 +46,67 @@ var draggableEvents = {
         }
     }
 };
-var deviceEvents = isTouchDevice ? draggableEvents.mobile : draggableEvents.desktop;
+var deviceEvents = isTouchDevice ? draggableEvents.touch : draggableEvents.desktop;
+
+// Draws a rounded rectangle on a 2D context.
+var drawRoundedRect = function(context, x, y, width, height, borderRadius) {
+    if (borderRadius === 0) {
+        context.rect(x, y, width, height);
+    } else {
+        var widthMinusRad = width - borderRadius;
+        var heightMinusRad = height - borderRadius;
+        context.translate(x, y);
+        context.arc(borderRadius, borderRadius, borderRadius, Math.PI, Math.PI*1.5);
+        context.lineTo(widthMinusRad, 0);
+        context.arc(widthMinusRad, borderRadius, borderRadius, Math.PI*1.5, Math.PI*2);
+        context.lineTo(width, heightMinusRad);
+        context.arc(widthMinusRad, heightMinusRad, borderRadius, Math.PI*2, Math.PI*0.5);
+        context.lineTo(borderRadius, height);
+        context.arc(borderRadius, heightMinusRad, borderRadius, Math.PI*0.5, Math.PI);
+        context.translate(-x, -y);
+    }
+}
 
 var AvatarEditor = React.createClass({
     propTypes: {
         scale: React.PropTypes.number,
         image: React.PropTypes.string,
         border: React.PropTypes.number,
+        borderRadius: React.PropTypes.number,
         width: React.PropTypes.number,
         height: React.PropTypes.number,
         color: React.PropTypes.arrayOf(React.PropTypes.number),
-        onImageReady: React.PropTypes.func,
         style: React.PropTypes.object,
 
-        onLoadFailed: React.PropTypes.func,
-        onUpload: React.PropTypes.func,
-        onImageLoad: React.PropTypes.func,
+        onDropFile: React.PropTypes.func,
+        onLoadFailure: React.PropTypes.func,
+        onLoadSuccess: React.PropTypes.func,
+        onImageReady: React.PropTypes.func,
+        onMouseUp: React.PropTypes.func
     },
 
     getDefaultProps() {
         return {
             scale: 1,
             border: 25,
+            borderRadius: 0,
             width: 200,
             height: 200,
             color: [0, 0, 0, 0.5],
             style: {},
+<<<<<<< HEAD
             onLoadFailed() {},
             onUpload() {},
             onImageLoad() {}
         };
+=======
+            onDropFile() {},
+            onLoadFailure() {},
+            onLoadSuccess() {},
+            onImageReady() {},
+            onMouseUp() {}
+        }
+>>>>>>> 8a2ea9950b598c45dc5b6bffa79d41bd5aa76411
     },
 
     getInitialState() {
@@ -110,6 +148,18 @@ var AvatarEditor = React.createClass({
 
         return dom.toDataURL(type, quality);
     },
+    
+    getCroppingRect() {
+        var dim = this.getDimensions();
+        var frameRect = {x: dim.border, y: dim.border, width: dim.width, height: dim.height};
+        var imageRect = this.calculatePosition(this.state.image, dim.border);
+        return {
+            x: (frameRect.x - imageRect.x) / imageRect.width,
+            y: (frameRect.y - imageRect.y) / imageRect.height,
+            width: frameRect.width / imageRect.width,
+            height: frameRect.height / imageRect.height,
+        };
+    },
 
     isDataURL(str) {
         var regex = /^\s*data:([a-z]+\/[a-z]+(;[a-z\-]+\=[a-z\-]+)?)?(;base64)?,[a-z0-9\!\$\&\'\,\(\)\*\+\,\;\=\-\.\_\~\:\@\/\?\%\s]*\s*$/i;
@@ -119,30 +169,44 @@ var AvatarEditor = React.createClass({
     loadImage(imageURL) {
         var imageObj = new Image();
         imageObj.onload = this.handleImageReady.bind(this, imageObj);
-        imageObj.onerror = this.props.onLoadFailed;
+        imageObj.onerror = this.props.onLoadFailure;
         if (!this.isDataURL(imageURL)) imageObj.crossOrigin = 'anonymous';
         imageObj.src = imageURL;
     },
 
     componentDidMount() {
-        var context = React.findDOMNode(this.refs.canvas).getContext('2d');
+        var context = ReactDOM.findDOMNode(this.refs.canvas).getContext('2d');
         if (this.props.image) {
             this.loadImage(this.props.image);
         }
         this.paint(context);
-        document && document.addEventListener(deviceEvents.native.move, this.handleMouseMove, false);
-        document && document.addEventListener(deviceEvents.native.up, this.handleMouseUp, false);
+        if (document) {
+            var nativeEvents = deviceEvents.native;
+            document.addEventListener(nativeEvents.move, this.handleMouseMove, false);
+            document.addEventListener(nativeEvents.up, this.handleMouseUp, false);
+            if (isTouchDevice) {
+                document.addEventListener(nativeEvents.mouseMove, this.handleMouseMove, false);
+                document.addEventListener(nativeEvents.mouseUp, this.handleMouseUp, false);
+            }
+        }
 
-        if (isTouchDevice) React.initializeTouchEvents(true);
+        if (isTouchDevice && React.initializeTouchEvents) React.initializeTouchEvents(true);
     },
 
     componentWillUnmount() {
-        document && document.removeEventListener(deviceEvents.native.move, this.handleMouseMove, false);
-        document && document.removeEventListener(deviceEvents.native.up, this.handleMouseUp, false);
+        if (document) {
+            var nativeEvents = deviceEvents.native;
+            document.removeEventListener(nativeEvents.move, this.handleMouseMove, false);
+            document.removeEventListener(nativeEvents.up, this.handleMouseUp, false);
+            if (isTouchDevice) {
+                document.removeEventListener(nativeEvents.mouseMove, this.handleMouseMove, false);
+                document.removeEventListener(nativeEvents.mouseUp, this.handleMouseUp, false);
+            }
+        }
     },
 
     componentDidUpdate() {
-        var context = React.findDOMNode(this.refs.canvas).getContext('2d');
+        var context = ReactDOM.findDOMNode(this.refs.canvas).getContext('2d');
         context.clearRect(0, 0, this.getDimensions().canvas.width, this.getDimensions().canvas.height);
         this.paint(context);
         this.paintImage(context, this.state.image, this.props.border);
@@ -153,7 +217,7 @@ var AvatarEditor = React.createClass({
         imageState.resource = image;
         imageState.x = 0;
         imageState.y = 0;
-        this.props.onImageLoad(imageState);
+        this.props.onLoadSuccess(imageState);
         this.setState({drag: false, image: imageState}, this.props.onImageReady);
     },
 
@@ -231,18 +295,28 @@ var AvatarEditor = React.createClass({
         var dimensions = this.getDimensions();
 
         var borderSize = dimensions.border;
+        var borderRadius = this.props.borderRadius;
         var height = dimensions.canvas.height;
         var width = dimensions.canvas.width;
-
-        context.fillRect(0, 0, width, borderSize); // top
-        context.fillRect(0, height - borderSize, width, borderSize); // bottom
-        context.fillRect(0, borderSize, borderSize, height - (borderSize * 2)); // left
-        context.fillRect(width - borderSize, borderSize, borderSize, height - (borderSize * 2)); // right
+        
+        // clamp border radius between zero (perfect rectangle) and half the size without borders (perfect circle or "pill")
+        borderRadius = Math.max(borderRadius, 0);
+        borderRadius = Math.min(borderRadius, width/2 - borderSize, height/2 - borderSize);
+        
+        context.beginPath();
+        drawRoundedRect(context, borderSize, borderSize, width - borderSize*2, height - borderSize*2, borderRadius); // inner rect, possibly rounded
+        context.rect(width, 0, -width, height); // outer rect, drawn "counterclockwise"
+        context.fill('evenodd');
 
         context.restore();
     },
 
-    handleMouseDown() {
+    handleMouseDown(e) {
+        var e = e || window.event;
+        // if e is a touch event, preventDefault keeps
+        // corresponding mouse events from also being fired
+        // later.
+        e.preventDefault();
         this.setState({
             drag: true,
             mx: null,
@@ -253,9 +327,11 @@ var AvatarEditor = React.createClass({
         if (this.state.drag) {
             this.setState({drag: false});
         }
+        this.props.onMouseUp();
     },
 
     handleMouseMove(e) {
+        var e = e || window.event;
         if (false == this.state.drag) {
             return;
         }
@@ -264,8 +340,8 @@ var AvatarEditor = React.createClass({
         var lastX = imageState.x;
         var lastY = imageState.y;
 
-        var mousePositionX = isTouchDevice ? event.targetTouches[0].pageX : e.clientX;
-        var mousePositionY = isTouchDevice ? event.targetTouches[0].pageY : e.clientY;
+        var mousePositionX = e.targetTouches ? e.targetTouches[0].pageX : e.clientX;
+        var mousePositionY = e.targetTouches ? e.targetTouches[0].pageY : e.clientY;
 
         var newState = { mx: mousePositionX, my: mousePositionY, image: imageState };
 
@@ -291,6 +367,7 @@ var AvatarEditor = React.createClass({
         var image = this.state.image;
         var dimensions = this.getDimensions();
         var widthDiff = Math.floor((image.width - dimensions.width / scale) / 2);
+        widthDiff = Math.max(0, widthDiff);
         return Math.max(-widthDiff, Math.min(x, widthDiff));
     },
 
@@ -298,20 +375,27 @@ var AvatarEditor = React.createClass({
         var image = this.state.image;
         var dimensions = this.getDimensions();
         var heightDiff = Math.floor((image.height - dimensions.height / scale) / 2);
+        heightDiff = Math.max(0, heightDiff);
         return Math.max(-heightDiff, Math.min(y, heightDiff));
     },
 
     handleDragOver(e) {
+        var e = e || window.event;
         e.preventDefault();
     },
 
     handleDrop(e) {
+        var e = e || window.event;
         e.stopPropagation();
         e.preventDefault();
-        let reader = new FileReader();
-        let file = e.dataTransfer.files[0];
-        reader.onload = (e) => this.loadImage(e.target.result);
-        reader.readAsDataURL(file);
+        
+        if (e.dataTransfer && e.dataTransfer.files.length) {
+            this.props.onDropFile(e);
+            let reader = new FileReader();
+            let file = e.dataTransfer.files[0];
+            reader.onload = (e) => this.loadImage(e.target.result);
+            reader.readAsDataURL(file);
+        }
     },
 
     render() {
@@ -322,12 +406,13 @@ var AvatarEditor = React.createClass({
         var attributes = {
             width: this.getDimensions().canvas.width,
             height: this.getDimensions().canvas.height,
-            style: Object.assign(defaultStyle, this.props.style)
+            style: {...defaultStyle, ...this.props.style}
         };
 
         attributes[deviceEvents.react.down] = this.handleMouseDown;
         attributes[deviceEvents.react.drag] = this.handleDragOver;
         attributes[deviceEvents.react.drop] = this.handleDrop;
+        if (isTouchDevice) attributes[deviceEvents.react.mouseDown] = this.handleMouseDown;
 
         return <canvas ref='canvas' {...attributes} />;
     }

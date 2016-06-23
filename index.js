@@ -82,7 +82,8 @@ var AvatarEditor = React.createClass({
         onLoadFailure: React.PropTypes.func,
         onLoadSuccess: React.PropTypes.func,
         onImageReady: React.PropTypes.func,
-        onMouseUp: React.PropTypes.func
+        onMouseUp: React.PropTypes.func,
+        onMouseMove: React.PropTypes.func
     },
 
     getDefaultProps() {
@@ -98,7 +99,8 @@ var AvatarEditor = React.createClass({
             onLoadFailure() {},
             onLoadSuccess() {},
             onImageReady() {},
-            onMouseUp() {}
+            onMouseUp() {},
+            onMouseMove() {}
         }
     },
 
@@ -126,20 +128,44 @@ var AvatarEditor = React.createClass({
         };
     },
 
-    getImage(type, quality) {
-        var dom = document.createElement('canvas');
-        var context = dom.getContext('2d');
-        var dimensions = this.getDimensions();
-        var border = 0;
+    getImage() {
+        // get relative coordinates (0 to 1)
+        var cropRect = this.getCroppingRect();
+        var image = this.state.image;
 
-        dom.width = dimensions.width;
-        dom.height = dimensions.height;
+        // get actual pixel coordinates
+        cropRect.x      *= image.resource.width;
+        cropRect.y      *= image.resource.height;
+        cropRect.width  *= image.resource.width;
+        cropRect.height *= image.resource.height;
 
-        context.globalCompositeOperation = 'destination-over';
+        // create a canvas with the correct dimensions
+        var canvas = document.createElement('canvas');
+        canvas.width  = cropRect.width;
+        canvas.height = cropRect.height;
 
-        this.paintImage(context, this.state.image, border);
+        // draw the full-size image at the correct position,
+        // the image gets truncated to the size of the canvas.
+        canvas.getContext('2d').drawImage(image.resource, -cropRect.x, -cropRect.y);
 
-        return dom.toDataURL(type, quality);
+        return canvas;
+    },
+
+    /**
+     * Get the image scaled to original canvas size.
+     * This was default in 4.x and is now kept as a legacy method.
+     */
+    getImageScaledToCanvas() {
+        const { width, height } = this.getDimensions();
+
+        let canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+
+        // don't paint a border here, as it is the resulting image
+        this.paintImage(canvas.getContext('2d'), this.state.image, 0);
+
+        return canvas;
     },
 
     getCroppingRect() {
@@ -182,8 +208,6 @@ var AvatarEditor = React.createClass({
                 document.addEventListener(nativeEvents.mouseUp, this.handleMouseUp, false);
             }
         }
-
-        if (isTouchDevice && React.initializeTouchEvents) React.initializeTouchEvents(true);
     },
 
     componentWillUnmount() {
@@ -210,8 +234,8 @@ var AvatarEditor = React.createClass({
         imageState.resource = image;
         imageState.x = 0;
         imageState.y = 0;
-        this.props.onLoadSuccess(imageState);
         this.setState({drag: false, image: imageState}, this.props.onImageReady);
+        this.props.onLoadSuccess(imageState);
     },
 
     getInitialSize(width, height) {
@@ -347,6 +371,7 @@ var AvatarEditor = React.createClass({
         }
 
         this.setState(newState);
+        this.props.onMouseMove();
     },
 
     squeeze(props) {
@@ -393,14 +418,17 @@ var AvatarEditor = React.createClass({
 
     render() {
         var defaultStyle = {
-            cursor: this.state.drag? 'grabbing' : 'grab'
-        };
+            cursor: this.state.drag ? 'grabbing' : 'grab'
+        }
 
         var attributes = {
             width: this.getDimensions().canvas.width,
             height: this.getDimensions().canvas.height,
-            style: {...defaultStyle, ...this.props.style}
-        };
+            style: {
+                ...defaultStyle,
+                ...this.props.style
+            }
+        }
 
         attributes[deviceEvents.react.down] = this.handleMouseDown;
         attributes[deviceEvents.react.drag] = this.handleDragOver;

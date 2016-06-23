@@ -98,7 +98,8 @@
             onLoadFailure: React.PropTypes.func,
             onLoadSuccess: React.PropTypes.func,
             onImageReady: React.PropTypes.func,
-            onMouseUp: React.PropTypes.func
+            onMouseUp: React.PropTypes.func,
+            onMouseMove: React.PropTypes.func
         },
 
         getDefaultProps: function getDefaultProps() {
@@ -114,7 +115,8 @@
                 onLoadFailure: function onLoadFailure() {},
                 onLoadSuccess: function onLoadSuccess() {},
                 onImageReady: function onImageReady() {},
-                onMouseUp: function onMouseUp() {}
+                onMouseUp: function onMouseUp() {},
+                onMouseMove: function onMouseMove() {}
             };
         },
 
@@ -142,20 +144,47 @@
             };
         },
 
-        getImage: function getImage(type, quality) {
-            var dom = document.createElement('canvas');
-            var context = dom.getContext('2d');
-            var dimensions = this.getDimensions();
-            var border = 0;
+        getImage: function getImage() {
+            // get relative coordinates (0 to 1)
+            var cropRect = this.getCroppingRect();
+            var image = this.state.image;
 
-            dom.width = dimensions.width;
-            dom.height = dimensions.height;
+            // get actual pixel coordinates
+            cropRect.x *= image.resource.width;
+            cropRect.y *= image.resource.height;
+            cropRect.width *= image.resource.width;
+            cropRect.height *= image.resource.height;
 
-            context.globalCompositeOperation = 'destination-over';
+            // create a canvas with the correct dimensions
+            var canvas = document.createElement('canvas');
+            canvas.width = cropRect.width;
+            canvas.height = cropRect.height;
 
-            this.paintImage(context, this.state.image, border);
+            // draw the full-size image at the correct position,
+            // the image gets truncated to the size of the canvas.
+            canvas.getContext('2d').drawImage(image.resource, -cropRect.x, -cropRect.y);
 
-            return dom.toDataURL(type, quality);
+            return canvas;
+        },
+
+        /**
+         * Get the image scaled to original canvas size.
+         * This was default in 4.x and is now kept as a legacy method.
+         */
+        getImageScaledToCanvas: function getImageScaledToCanvas() {
+            var _getDimensions = this.getDimensions();
+
+            var width = _getDimensions.width;
+            var height = _getDimensions.height;
+
+            var canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+
+            // don't paint a border here, as it is the resulting image
+            this.paintImage(canvas.getContext('2d'), this.state.image, 0);
+
+            return canvas;
         },
 
         getCroppingRect: function getCroppingRect() {
@@ -198,8 +227,6 @@
                     document.addEventListener(nativeEvents.mouseUp, this.handleMouseUp, false);
                 }
             }
-
-            if (isTouchDevice && React.initializeTouchEvents) React.initializeTouchEvents(true);
         },
 
         componentWillUnmount: function componentWillUnmount() {
@@ -226,8 +253,8 @@
             imageState.resource = image;
             imageState.x = 0;
             imageState.y = 0;
-            this.props.onLoadSuccess(imageState);
             this.setState({ drag: false, image: imageState }, this.props.onImageReady);
+            this.props.onLoadSuccess(imageState);
         },
 
         getInitialSize: function getInitialSize(width, height) {
@@ -362,6 +389,7 @@
             }
 
             this.setState(newState);
+            this.props.onMouseMove();
         },
 
         squeeze: function squeeze(props) {
@@ -492,7 +520,7 @@ var App = React.createClass({displayName: "App",
     },
 
     handleSave: function(data) {
-        var img = this.refs.avatar.getImage();
+        var img = this.refs.avatar.getImage().toDataURL();
         var rect = this.refs.avatar.getCroppingRect();
         this.setState({preview: img, croppingRect: rect});
     },
@@ -1824,6 +1852,9 @@ var currentQueue;
 var queueIndex = -1;
 
 function cleanUpNextTick() {
+    if (!draining || !currentQueue) {
+        return;
+    }
     draining = false;
     if (currentQueue.length) {
         queue = currentQueue.concat(queue);
@@ -11526,6 +11557,10 @@ var ReactEmptyComponentInjection = {
   }
 };
 
+function registerNullComponentID() {
+  ReactEmptyComponentRegistry.registerNullComponentID(this._rootNodeID);
+}
+
 var ReactEmptyComponent = function (instantiate) {
   this._currentElement = null;
   this._rootNodeID = null;
@@ -11534,7 +11569,7 @@ var ReactEmptyComponent = function (instantiate) {
 assign(ReactEmptyComponent.prototype, {
   construct: function (element) {},
   mountComponent: function (rootID, transaction, context) {
-    ReactEmptyComponentRegistry.registerNullComponentID(rootID);
+    transaction.getReactMountReady().enqueue(registerNullComponentID, this);
     this._rootNodeID = rootID;
     return ReactReconciler.mountComponent(this._renderedComponent, rootID, transaction, context);
   },
@@ -15840,7 +15875,7 @@ module.exports = ReactUpdates;
 
 'use strict';
 
-module.exports = '0.14.7';
+module.exports = '0.14.8';
 },{}],116:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.

@@ -10,27 +10,25 @@ Resize and crop your uploaded image using a clear user interface.
 
 
 ```javascript
+import React from 'react'
+import AvatarEditor from 'react-avatar-editor'
 
-var React = require('react'),
-  AvatarEditor = require('react-avatar-editor');
-
-var MyEditor = React.createClass({
-
-  render: function() {
+class MyEditor extends React.Component {
+  render () {
     return (
-        <AvatarEditor
-          image="http://example.com/initialimage.jpg"
-          width={250}
-          height={250}
-          border={50}
-          color={[255, 255, 255, 0.6]} // RGBA
-          scale={1.2} />
-    );
+      <AvatarEditor
+        image="http://example.com/initialimage.jpg"
+        width={250}
+        height={250}
+        border={50}
+        color={[255, 255, 255, 0.6]} // RGBA
+        scale={1.2}
+      />
+    )
   }
+}
 
-});
-
-module.exports = MyEditor;
+export default MyEditor
 ```
 
 ## Props
@@ -43,10 +41,12 @@ module.exports = MyEditor;
 | style                  | Object   | Styles for the canvas element
 | scale                  | Number   | The scale of the image. You can use this to add your own resizing slider.
 | onDropFile(event)      | function | Invoked when user drops a file (or more) onto the canvas. Does not perform any further check.
-| onLoadSuccess(imgInfo) | function | Invoked when an image (whether passed by props or dropped) load succeeds.
 | onLoadFailure(event)   | function | Invoked when an image (whether passed by props or dropped) load fails.
+| onLoadSuccess(imgInfo) | function | Invoked when an image (whether passed by props or dropped) load succeeds.
+| onImageReady(event)    | function | Invoked when the image is painted on the canvas the first time
 | onMouseUp()            | function | Invoked when the user releases their mouse button after interacting with the editor.
 | onMouseMove()          | function | Invoked when the user hold and moving the image.
+| onImageChange()        | function | Invoked when the user changed the image. Not invoked on the first render, and invoked multiple times during drag, etc.
 
 ## Accessing the resulting image
 
@@ -55,33 +55,38 @@ If you want the image sized in the dimensions of the canvas you can use `getImag
 
 
 ```javascript
+import React from 'react'
+import AvatarEditor from 'react-avatar-editor'
 
-var React = require('react'),
-  AvatarEditor = require('react-avatar-editor');
+const MyEditor extends React.Component {
+  onClickSave () {
+    // This returns a HTMLCanvasElement, it can be made into a data URL or a blob,
+    // drawn on another canvas, or added to the DOM.
+    const canvas = this.editor.getImage()
 
-var MyEditor = React.createClass({
-  onClickSave: function() {
-    var canvas = this.refs.editor.getImage(); // This is a HTMLCanvasElement.
-    // It can be made into a data URL or a blob, drawn on another canvas, or added to the DOM.
-    
     // If you want the image resized to the canvas size (also a HTMLCanvasElement)
-    var canvasScaled = this.refs.editor.getImageScaledToCanvas();
-  },
-  render: function() {
+    const canvasScaled = this.editor.getImageScaledToCanvas()
+  }
+
+  setEditorRef (editor) {
+    if (editor) this.editor = editor
+  }
+
+  render () {
     return (
         <AvatarEditor
-          ref="editor"
+          ref={this.setEditorRef.bind(this)}
           image="http://example.com/initialimage.jpg"
           width={250}
           height={250}
           border={50}
-          scale={1.2} />
-    );
+          scale={1.2}
+        />
+    )
   }
+}
 
-});
-
-module.exports = MyEditor;
+export default MyEditor
 ```
 
 ## Accessing the cropping rectangle
@@ -94,10 +99,11 @@ all relative to the image size (that is, comprised between 0 and 1). It is a met
 like ``getImage()``.
 
 
-# Development
+# Contributing
 
 For development you can use following build tools:
 
-* `npm run build`: Builds the dist file: `dist/index.js`
-* `npm run watch`: Watches for file changes and builds into: `dist/index.js`
-* `npm run demo`: Builds the demo based on the dist file `dist/index.js`
+* `npm run build`: Builds the *minified* dist file: `dist/index.js`
+* `npm run watch`: Watches for file changes and builds *unminified* into: `dist/index.js`
+* `npm run demo:build`: Builds the demo based on the dist file `dist/index.js`
+* `npm run demo:watch`: Run webpack-dev-server. Check demo website [localhost:8080](http://localhost:8080)
